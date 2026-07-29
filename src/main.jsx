@@ -3,6 +3,12 @@ import ReactDOM from "react-dom/client";
 import "./lib/storage"; // define window.storage antes de montar App
 import App from "./App.jsx";
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
