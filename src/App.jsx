@@ -169,6 +169,7 @@ export default function App() {
   const [role, setRole] = useState(null); // 'entrenador' | 'clienta'
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState([]);
+  const [extraMenuAction, setExtraMenuAction] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -219,41 +220,135 @@ export default function App() {
     [clientes]
   );
 
+  const cambiarRol = () => {
+    setRole(null);
+    setExtraMenuAction(null);
+  };
+
+  const menuItems = [{ label: "Cambiar de rol", onClick: cambiarRol }];
+  if (extraMenuAction) menuItems.push(extraMenuAction);
+
   return (
     <div className="app-root">
       <style>{CSS}</style>
-      <header className="header">
-        <div className="brand">¡BIENVENIDA!</div>
-        {role && (
-          <button className="link-btn" onClick={() => setRole(null)}>
-            cambiar rol
-          </button>
-        )}
-      </header>
 
       {loading ? (
         <div className="loading">Cargando…</div>
       ) : !role ? (
-        <RoleGate onPick={setRole} />
-      ) : role === "entrenador" ? (
-        <EntrenadorAccess>
-          <EntrenadorView
-            clientes={clientes}
-            addCliente={addCliente}
-            regenerarPin={regenerarPin}
-            eliminarCliente={eliminarCliente}
-          />
-        </EntrenadorAccess>
+        <Hero onPick={setRole} />
       ) : (
-        <ClientaView clientes={clientes} addCliente={addCliente} />
+        <>
+          <header className="header">
+            <div className="brand">¡BIENVENIDA!</div>
+            <MenuButton items={menuItems} />
+          </header>
+          <div className="content">
+            {role === "entrenador" ? (
+              <EntrenadorAccess onMenuAction={setExtraMenuAction}>
+                <EntrenadorView
+                  clientes={clientes}
+                  addCliente={addCliente}
+                  regenerarPin={regenerarPin}
+                  eliminarCliente={eliminarCliente}
+                />
+              </EntrenadorAccess>
+            ) : (
+              <ClientaView clientes={clientes} addCliente={addCliente} onMenuAction={setExtraMenuAction} />
+            )}
+          </div>
+        </>
       )}
     </div>
   );
 }
 
+function MenuButton({ items }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="menu-wrap">
+      <button className="menu-toggle" onClick={() => setOpen((o) => !o)} aria-label="Abrir menú">
+        ☰
+      </button>
+      {open && (
+        <>
+          <div className="menu-backdrop" onClick={() => setOpen(false)} />
+          <div className="menu-dropdown">
+            {items.map((it, i) => (
+              <button
+                key={i}
+                className="menu-item"
+                onClick={() => {
+                  setOpen(false);
+                  it.onClick();
+                }}
+              >
+                {it.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Hero({ onPick }) {
+  return (
+    <div className="hero">
+      <div className="hero-illustration" aria-hidden="true">
+        <PilatesArt />
+      </div>
+      <div className="hero-content">
+        <div className="hero-brand">¡BIENVENIDA!</div>
+        <p className="hero-sub">¿Entrenamos hoy?</p>
+        <div className="gate-buttons">
+          <button className="gate-btn" onClick={() => onPick("entrenador")}>
+            <span className="gate-btn-title">Soy entrenador/a</span>
+            <span className="gate-btn-desc">Cargo rutinas por clienta</span>
+          </button>
+          <button className="gate-btn" onClick={() => onPick("clienta")}>
+            <span className="gate-btn-title">Soy clienta</span>
+            <span className="gate-btn-desc">Registro mi entrenamiento</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PilatesArt() {
+  // Ilustración propia (no es una foto) en estilo línea continua: figura
+  // estirándose sobre un mat, evocando una clase de pilates/stretching.
+  return (
+    <svg viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="200" cy="330" rx="150" ry="18" fill="var(--line)" opacity="0.5" />
+      <path
+        d="M70 300 C 90 250, 130 220, 170 225 C 190 227, 195 240, 185 250 C 220 235, 260 245, 275 270 C 285 288, 270 300, 250 298 C 210 294, 150 300, 110 305 C 95 307, 78 305, 70 300 Z"
+        fill="var(--accent)"
+        opacity="0.55"
+      />
+      <circle cx="245" cy="215" r="20" fill="var(--accent)" opacity="0.55" />
+      <path
+        d="M120 260 C 140 220, 160 190, 150 160"
+        stroke="var(--ink)"
+        strokeWidth="6"
+        strokeLinecap="round"
+        opacity="0.3"
+      />
+      <path
+        d="M275 275 C 300 260, 320 235, 315 205"
+        stroke="var(--ink)"
+        strokeWidth="6"
+        strokeLinecap="round"
+        opacity="0.3"
+      />
+    </svg>
+  );
+}
+
 /* ---------------- Acceso Entrenador (contraseña) ---------------- */
 
-function EntrenadorAccess({ children }) {
+function EntrenadorAccess({ children, onMenuAction }) {
   const [loading, setLoading] = useState(true);
   const [passGuardada, setPassGuardada] = useState(null);
   const [authOk, setAuthOk] = useState(false);
@@ -268,6 +363,12 @@ function EntrenadorAccess({ children }) {
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    if (!authOk) return;
+    onMenuAction({ label: "Cerrar sesión de entrenador/a", onClick: () => setAuthOk(false) });
+    return () => onMenuAction(null);
+  }, [authOk, onMenuAction]);
 
   if (loading) return <div className="loading">Cargando…</div>;
 
@@ -337,25 +438,71 @@ function EntrenadorAccess({ children }) {
   );
 }
 
-function RoleGate({ onPick }) {
+/* ---------------- Vista Entrenador ---------------- */
+
+function Notificaciones() {
+  const [notifs, setNotifs] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const key = "notificaciones";
+
+  useEffect(() => {
+    (async () => {
+      const list = await loadJSON(key, true, []);
+      setNotifs(list);
+      setLoaded(true);
+    })();
+  }, []);
+
+  if (!loaded || notifs.length === 0) return null;
+
+  const noLeidas = notifs.filter((n) => !n.leida);
+
+  const marcarLeidas = async () => {
+    const next = notifs.map((n) => ({ ...n, leida: true }));
+    setNotifs(next);
+    await saveJSON(key, next, true);
+  };
+
+  const eliminar = async (id) => {
+    const next = notifs.filter((n) => n.id !== id);
+    setNotifs(next);
+    await saveJSON(key, next, true);
+  };
+
   return (
-    <div className="gate">
-      <p className="gate-sub">¿Entrenamos hoy?</p>
-      <div className="gate-buttons">
-        <button className="gate-btn" onClick={() => onPick("entrenador")}>
-          <span className="gate-btn-title">Soy entrenador/a</span>
-          <span className="gate-btn-desc">Cargo rutinas por clienta</span>
-        </button>
-        <button className="gate-btn" onClick={() => onPick("clienta")}>
-          <span className="gate-btn-title">Soy clienta</span>
-          <span className="gate-btn-desc">Registro mi entrenamiento</span>
-        </button>
+    <section className="panel notif-panel">
+      <div className="panel-header-row">
+        <h2 className="panel-title">
+          Sesiones completadas
+          {noLeidas.length > 0 && <span className="notif-badge">{noLeidas.length}</span>}
+        </h2>
+        {noLeidas.length > 0 && (
+          <button className="link-btn" onClick={marcarLeidas}>
+            marcar todas como leídas
+          </button>
+        )}
       </div>
-    </div>
+      <div className="notif-list">
+        {notifs
+          .slice()
+          .reverse()
+          .map((n) => (
+            <div key={n.id} className={`notif-item ${n.leida ? "" : "notif-unread"}`}>
+              <div>
+                <strong>{n.cliente}</strong> completó <strong>{n.sesion}</strong>
+                <div className="muted small">
+                  {n.fecha} · {n.hora}
+                </div>
+              </div>
+              <button className="link-btn danger" onClick={() => eliminar(n.id)}>
+                x
+              </button>
+            </div>
+          ))}
+      </div>
+    </section>
   );
 }
-
-/* ---------------- Vista Entrenador ---------------- */
 
 function EntrenadorView({ clientes, addCliente, regenerarPin, eliminarCliente }) {
   const [selId, setSelId] = useState(clientes[0]?.id || null);
@@ -374,6 +521,8 @@ function EntrenadorView({ clientes, addCliente, regenerarPin, eliminarCliente })
 
   return (
     <div className="view">
+      <Notificaciones />
+
       <section className="panel">
         <h2 className="panel-title">Clientas</h2>
         <div className="chip-row">
@@ -632,12 +781,18 @@ function SessionEditor({ session, onChange, onRemove }) {
 
 /* ---------------- Vista Clienta ---------------- */
 
-function ClientaView({ clientes, addCliente }) {
+function ClientaView({ clientes, addCliente, onMenuAction }) {
   const [sel, setSel] = useState(null);
   const [nombre, setNombre] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [pinNuevo, setPinNuevo] = useState(null); // { nombre, pin } recién creado
+
+  useEffect(() => {
+    if (!sel) return;
+    onMenuAction({ label: "Salir de mi perfil", onClick: () => setSel(null) });
+    return () => onMenuAction(null);
+  }, [sel, onMenuAction]);
 
   if (sel) {
     return <SesionLogger cliente={sel} onSalir={() => setSel(null)} />;
@@ -708,6 +863,7 @@ function SesionLogger({ cliente, onSalir }) {
   const [loaded, setLoaded] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [celebrando, setCelebrando] = useState(null); // nombre de la sesión recién terminada
 
   useEffect(() => {
     (async () => {
@@ -719,6 +875,19 @@ function SesionLogger({ cliente, onSalir }) {
   }, [cliente.id]);
 
   if (!loaded) return <div className="loading">Cargando…</div>;
+
+  if (celebrando) {
+    return (
+      <div className="view">
+        <div className="celebracion">
+          <div className="celebracion-emoji">🎉</div>
+          <h2 className="celebracion-titulo">¡Felicidades!</h2>
+          <p className="celebracion-texto">Terminaste tu sesión de {celebrando}, ¡nos vemos la próxima!</p>
+          <Button onClick={() => setCelebrando(null)}>Volver a mis sesiones</Button>
+        </div>
+      </div>
+    );
+  }
 
   const session = rutina.sessions.find((s) => s.id === sessionId);
 
@@ -748,7 +917,13 @@ function SesionLogger({ cliente, onSalir }) {
             ))}
           </div>
 
-          {session && <RegistroSesion cliente={cliente} session={session} />}
+          {session && (
+            <RegistroSesion
+              cliente={cliente}
+              session={session}
+              onFinalizar={() => setCelebrando(session.nombre)}
+            />
+          )}
         </>
       )}
 
@@ -789,7 +964,7 @@ function rirFlag(actualRir, objetivoRir) {
   return null;
 }
 
-function RegistroSesion({ cliente, session }) {
+function RegistroSesion({ cliente, session, onFinalizar }) {
   const [registro, setRegistro] = useState({ fecha: todayISO(), ejercicios: {}, notas: "" });
   const [ultima, setUltima] = useState({});
   const [prevFecha, setPrevFecha] = useState(null);
@@ -991,6 +1166,32 @@ function RegistroSesion({ cliente, session }) {
         value={registro.notas}
         onChange={(ev) => persist({ ...registro, notas: ev.target.value })}
       />
+
+      <Button
+        className="btn-finalizar"
+        onClick={async () => {
+          const notifs = await loadJSON("notificaciones", true, []);
+          await saveJSON(
+            "notificaciones",
+            [
+              ...notifs,
+              {
+                id: uid(),
+                cliente: cliente.nombre,
+                sesion: session.nombre,
+                fecha: todayISO(),
+                hora: new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
+                leida: false,
+              },
+            ],
+            true
+          );
+          onFinalizar();
+        }}
+      >
+        Finalizar sesión
+      </Button>
+
       <VideoModal url={videoUrl} onClose={() => setVideoUrl(null)} />
     </div>
   );
@@ -1067,18 +1268,22 @@ const CSS = `
   --danger: #E0596B;
 }
 * { box-sizing: border-box; }
+html, body, #root { height: 100%; }
 .app-root {
-  min-height: 100%;
+  min-height: 100dvh;
+  min-height: 100vh;
   background: var(--bg);
   color: var(--ink);
   font-family: 'Inter', system-ui, sans-serif;
-  padding: 16px;
   max-width: 480px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
 }
+.content { flex: 1; padding: 16px; }
 .header {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 20px;
+  padding: 16px; position: relative;
 }
 .brand {
   font-family: 'Oswald', sans-serif;
@@ -1091,13 +1296,54 @@ const CSS = `
 .brand-accent { color: var(--accent); }
 .loading, .empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
 
-.gate { display: flex; flex-direction: column; gap: 16px; margin-top: 40px; }
-.gate-sub { color: var(--muted); font-size: 13px; }
-.gate-buttons { display: flex; flex-direction: column; gap: 12px; }
-.gate-btn {
+.menu-wrap { position: relative; }
+.menu-toggle {
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+  font-size: 16px; line-height: 1; border-radius: 8px; padding: 8px 12px; cursor: pointer;
+}
+.menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+.menu-dropdown {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 41;
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  min-width: 220px; overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+}
+.menu-item {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  color: var(--ink); font-size: 14px; padding: 12px 14px; cursor: pointer;
+}
+.menu-item:hover { background: var(--card); }
+.menu-item + .menu-item { border-top: 1px solid var(--line); }
+
+.hero {
+  position: relative;
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 15%, #4A1F28 0%, var(--bg) 65%);
+}
+.hero-illustration {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  opacity: 0.9; pointer-events: none;
+}
+.hero-illustration svg { width: 130%; max-width: 640px; }
+.hero-content {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 22px;
+  padding: 32px 24px; text-align: center; width: 100%;
+}
+.hero-brand {
+  font-family: 'Oswald', sans-serif; font-size: 30px; font-weight: 700; letter-spacing: 0.02em;
+}
+.hero-sub { color: var(--muted); font-size: 15px; margin: -12px 0 0; }
+
+.gate-buttons { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
+.gate-btn {
+  background: rgba(58, 23, 29, 0.88); border: 1px solid var(--line); border-radius: 10px;
   padding: 18px; text-align: left; cursor: pointer; color: var(--ink);
-  display: flex; flex-direction: column; gap: 4px;
+  display: flex; flex-direction: column; gap: 4px; backdrop-filter: blur(2px);
 }
 .gate-btn:hover { border-color: var(--accent); }
 .gate-btn-title { font-family: 'Oswald', sans-serif; font-size: 18px; font-weight: 600; }
@@ -1201,6 +1447,30 @@ const CSS = `
 .confirm-row { display: flex; flex-direction: column; gap: 8px; }
 .confirm-buttons { display: flex; align-items: center; gap: 14px; }
 .btn-danger { border-color: var(--danger) !important; color: var(--danger) !important; }
+
+.btn-finalizar { width: 100%; margin-top: 4px; }
+
+.celebracion {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 10px; padding: 60px 20px;
+}
+.celebracion-emoji { font-size: 48px; }
+.celebracion-titulo { font-family: 'Oswald', sans-serif; font-size: 24px; }
+.celebracion-texto { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+
+.notif-panel { border: 1px solid var(--accent); }
+.notif-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 8px;
+  background: var(--accent); color: #FBEEF0; border-radius: 999px;
+  font-size: 11px; font-family: 'Inter', sans-serif; text-transform: none;
+}
+.notif-list { display: flex; flex-direction: column; gap: 8px; }
+.notif-item {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; background: var(--card);
+}
+.notif-unread { border-left: 3px solid var(--accent); }
 
 .picker { position: relative; }
 .picker-list {
